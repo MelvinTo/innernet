@@ -31,15 +31,16 @@ fn get_namefile(name: &InterfaceName) -> io::Result<PathBuf> {
 }
 
 fn get_socketfile(name: &InterfaceName) -> io::Result<PathBuf> {
-    if cfg!(target_os = "linux") {
+    //if cfg!(target_os = "linux") {
         Ok(get_base_folder()?.join(format!("{name}.sock")))
-    } else {
-        Ok(get_base_folder()?.join(format!("{}.sock", resolve_tun(name)?)))
-    }
+    //} else {
+    //    Ok(get_base_folder()?.join(format!("{}.sock", resolve_tun(name)?)))
+    //}
 }
 
 fn open_socket(name: &InterfaceName) -> io::Result<UnixStream> {
-    UnixStream::connect(get_socketfile(name)?)
+    let path2 = get_socketfile(name)?;
+    UnixStream::connect(path2)
 }
 
 pub fn resolve_tun(name: &InterfaceName) -> io::Result<String> {
@@ -60,15 +61,31 @@ pub fn delete_interface(name: &InterfaceName) -> io::Result<()> {
 pub fn enumerate() -> Result<Vec<InterfaceName>, io::Error> {
     use std::ffi::OsStr;
 
+
     let mut interfaces = vec![];
     for entry in fs::read_dir(get_base_folder()?)? {
         let path = entry?.path();
-        if path.extension() == Some(OsStr::new("name")) {
+        if path.extension() == Some(OsStr::new("sock")) {
+println!("path: {:?}", path.extension());
             let stem = path
                 .file_stem()
-                .and_then(|stem| stem.to_str())
+                .and_then(|stem| {
+                    println!("stem: {:?}", &stem);
+                    stem.to_str()
+        })
                 .and_then(|name| name.parse::<InterfaceName>().ok())
-                .filter(|iface| open_socket(iface).is_ok());
+                .filter(|iface| {
+                    match open_socket(iface) {
+                        Ok(xx) => {
+                            println!("OK: {:?}", &xx);
+                            true
+                        },
+                        Err(e) => {
+                            println!("Err on open socket, err: {}", e);
+                            false
+                        }
+                    }
+                });
             if let Some(iface) = stem {
                 interfaces.push(iface);
             }
